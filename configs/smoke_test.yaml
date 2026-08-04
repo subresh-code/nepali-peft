@@ -1,0 +1,13 @@
+# Smoke test: smallest task (564 train examples) + LoRA on XLM-R.
+# End-to-end in ~5-10 min on a Colab T4. Success = one row in
+# results/results.csv and an adapter under adapters/.
+model: xlmr-base
+task: coreference
+method: lora
+seed: 42
+lr: 2e-4
+epochs: 15
+batch_size: 16
+grad_accum: 1
+lora_r: 8
+lora_alpha: 16
