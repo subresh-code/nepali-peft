@@ -15,7 +15,12 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 MODELS = {
     # id -> (hf_checkpoint, family)
-    "nepberta": ("NepBERTa/NepBERTa", "monolingual"),
+    # Official NepBERTa/NepBERTa ships only TF weights, which transformers
+    # v5 can no longer load. This is our own conversion of the official
+    # tf_model.h5 (2026-08-04) — bit-identical to the independent
+    # Rajan/nepbertaTorch port on every tensor the official checkpoint
+    # contains; provenance details in the repo's model card.
+    "nepberta": ("subrace/NepBERTa-pytorch", "monolingual"),
     "iriis-roberta": ("IRIIS-RESEARCH/RoBERTa_Nepali_125M", "monolingual"),
     "mbert": ("bert-base-multilingual-cased", "multilingual"),
     "xlmr-base": ("xlm-roberta-base", "multilingual"),
@@ -57,6 +62,12 @@ def build(model_key: str, method: str, num_labels: int,
             lora_alpha=lora_alpha,
             lora_dropout=lora_dropout,
             target_modules=LORA_TARGET_MODULES,
+            # BERT-family classification routes through bert.pooler, which
+            # SEQ_CLS's default (classifier only) leaves frozen — and
+            # NepBERTa's checkpoint has no trained pooler at all, so its
+            # LoRA cells would sit on a frozen random pooler. Trainable
+            # pooler = part of the head. No-op for RoBERTa-family (no pooler).
+            modules_to_save=["classifier", "score", "pooler"],
         )
         model = get_peft_model(model, cfg)
     elif method != "full":
