@@ -4,5 +4,9 @@ peft>=0.11
 accelerate>=0.33
 scikit-learn>=1.4
 pyyaml>=6.0
+# Superlog telemetry (OpenTelemetry, bootstrap in src/telemetry.py)
+opentelemetry-sdk>=1.25
+opentelemetry-exporter-otlp-proto-http>=1.25
+opentelemetry-instrumentation-logging>=0.46b0
 # Optional, for the energy estimates in the ethics chapter:
 # codecarbon>=2.5

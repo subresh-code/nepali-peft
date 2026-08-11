@@ -1,5 +1,5 @@
+.venv/
 checkpoints/
 adapters/
+smoke.log
 __pycache__/
-*.pyc
-.ipynb_checkpoints/

@@ -1,0 +1,1 @@
+timestamp,run_id,model,family,task,method,lora_r,seed,epochs,lr,val_macro_f1,val_accuracy,val_mcc,test_macro_f1,test_accuracy,test_mcc,trainable_params,total_params,pct_trainable,peak_vram_gb,wall_clock_min
