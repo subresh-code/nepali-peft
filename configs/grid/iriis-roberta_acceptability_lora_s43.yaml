@@ -1,0 +1,10 @@
+model: iriis-roberta
+task: acceptability
+method: lora
+seed: 43
+lr: 0.0002
+epochs: 5
+batch_size: 32
+grad_accum: 1
+lora_r: 8
+lora_alpha: 16

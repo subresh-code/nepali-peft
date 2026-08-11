@@ -1,0 +1,10 @@
+model: xlmr-base
+task: coreference
+method: lora
+seed: 42
+lr: 0.0002
+lora_r: 4
+lora_alpha: 8
+epochs: 15
+batch_size: 16
+grad_accum: 1

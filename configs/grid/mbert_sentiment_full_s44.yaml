@@ -1,0 +1,8 @@
+model: mbert
+task: sentiment
+method: full
+seed: 44
+lr: 2.0e-05
+epochs: 3
+batch_size: 32
+grad_accum: 1

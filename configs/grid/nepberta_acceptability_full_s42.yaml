@@ -1,0 +1,8 @@
+model: nepberta
+task: acceptability
+method: full
+seed: 42
+lr: 2.0e-05
+epochs: 5
+batch_size: 32
+grad_accum: 1
