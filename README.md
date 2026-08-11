@@ -20,6 +20,7 @@ results/results.csv      # accumulates one row per completed run
 ## Quickstart (Colab, GPU runtime)
 ```bash
 pip install -r requirements.txt -q
+pip uninstall -y torchao   # Colab preinstalls 0.10.0, which breaks peft's LoRA dispatch
 python scripts/verify_models.py        # step 1: settle checkpoint IDs
 python train.py --config configs/smoke_test.yaml   # step 2: smoke test
 python scripts/make_configs.py         # step 3: generate the grid
