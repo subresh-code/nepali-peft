@@ -1,5 +1,7 @@
-% CMP6232 Assessment 2 — compilable wrapper for the Results & Discussion draft.
+% CMP6232 Assessment 2 — Final Report
 % Build: pdflatex main && bibtex main && pdflatex main && pdflatex main
+% On Overleaf: upload the three PNGs from results/figures/ and the Python
+% files referenced in the appendix, adjusting the ../ paths.
 \documentclass[11pt,a4paper]{article}
 
 \usepackage[margin=2.5cm]{geometry}
@@ -7,21 +9,201 @@
 \usepackage{multirow}
 \usepackage{graphicx}
 \usepackage[round]{natbib}
+\usepackage{listings}
+\usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
 
 \graphicspath{{../results/figures/}}
 
+\lstset{
+  language=Python, basicstyle=\ttfamily\scriptsize, breaklines=true,
+  commentstyle=\color{gray}, keywordstyle=\bfseries,
+  frame=single, numbers=left, numberstyle=\tiny\color{gray},
+  showstringspaces=false,
+}
+
 \title{Parameter-Efficient Fine-Tuning for Nepali:\\
 LoRA vs.\ Full Fine-Tuning Across Three NLUE Tasks}
-\author{Subresh Thakulla}
+\author{Subresh Thakulla\\Student ID: XXXXXXXX} % TODO: insert student ID
 \date{August 2026}
 
 \begin{document}
 \maketitle
 
+\begin{abstract}
+This report compares full fine-tuning with Low-Rank Adaptation (LoRA)
+across four pre-trained encoders --- two monolingual Nepali models
+(NepBERTa, IRIIS-RoBERTa) and two multilingual models (mBERT, XLM-R base)
+--- on three Nepali language-understanding tasks of decreasing size:
+sentiment analysis (65\,k examples), linguistic acceptability (7.8\,k),
+and coreference resolution (564). Across a 78-run grid on free-tier GPU
+hardware, three findings emerge. First, on the two larger tasks full
+fine-tuning is consistently best, but LoRA trails by only 3--8 macro-F1
+points while training under 1\,\% of the parameters at roughly half the
+memory and time. Second, at 564 examples the ordering inverts: full
+fine-tuning collapses to majority-class prediction on every model, while
+LoRA degrades gracefully and wins on all four; a rank ablation is
+consistent with adapter capacity, not the adaptation method, being the
+risk factor. Third, tokenizer fertility varies $2.3\times$ across the
+models and tracks downstream quality and cost better than the
+monolingual/multilingual distinction does, making vocabulary quality a
+first-order model-selection criterion for Nepali.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Nepali is spoken by over 30 million people yet remains low-resourced in
+NLP: labelled datasets are small, and practitioners typically cannot
+afford the hardware that modern fine-tuning assumes. Parameter-efficient
+fine-tuning (PEFT) methods --- adapters \citep{houlsby2019adapters}, LoRA
+\citep{hu2022lora}, and quantised variants such as QLoRA
+\citep{dettmers2023qlora} --- promise near-full-fine-tuning quality at a
+fraction of the compute, but the evidence base is overwhelmingly
+English-centric. Whether these trade-offs hold for a morphologically rich,
+Devanagari-script language, across both monolingual and multilingual
+pre-trained models, is an open practical question.
+
+The aim of this report is to quantify that trade-off for Nepali. Using
+three publicly released classification tasks from the NLUE benchmark
+\citep{nyachhyon2025nlue} --- sentiment analysis, linguistic
+acceptability, and coreference resolution, spanning three orders of
+magnitude in training-set size --- it evaluates full fine-tuning against
+LoRA on four pre-trained encoders under a fixed, method-fair training
+budget. The main achievements are: (i) a complete, reproducible 78-run
+experimental grid executed entirely on free-tier GPU hardware; (ii) a
+quantified accuracy--efficiency trade-off for LoRA in Nepali, including a
+data-scarcity regime in which LoRA \emph{outperforms} full fine-tuning;
+and (iii) a tokenizer-fertility analysis linking vocabulary quality to
+both accuracy and cost.
+
+The report is organised as follows. Section~\ref{sec:problem} describes
+the datasets and formalises the problem. Section~\ref{sec:method} details
+the models, pre-processing, and adaptation methods.
+Section~\ref{sec:results} presents parameter settings, the evaluation
+process, and results. Section~\ref{sec:summary} discusses the findings,
+and the appendix lists the Python code used to build and evaluate the
+models.
+
+\section{Problem Statement}
+\label{sec:problem}
+
+The task is supervised text classification for Nepali under realistic
+resource constraints. Three binary classification datasets are drawn from
+the NLUE benchmark \citep{nyachhyon2025nlue}, all released as
+Hugging Face datasets with train/test splits:
+
+\begin{description}
+  \item[Sentiment analysis] (65{,}106 train / 16{,}279 test): single
+  sentences labelled positive or negative.
+  \item[Linguistic acceptability] (7{,}799 / 1{,}950): a Nepali analogue
+  of the Corpus of Linguistic Acceptability \citep{warstadt2019cola};
+  single sentences labelled grammatically acceptable or not.
+  \item[Coreference resolution] (564 / 142): sentence pairs, cast as
+  binary classification of whether the marked mentions corefer.
+\end{description}
+
+The spread in size --- roughly $115\times$ between the largest and
+smallest training set --- is deliberate: it turns dataset scale into an
+experimental axis. The deep learning problem is then a controlled
+$4 \times 2$ comparison: four pre-trained transformer encoders (two
+monolingual Nepali, two multilingual) crossed with two adaptation methods
+(full fine-tuning vs.\ LoRA), asking (a) how much accuracy LoRA concedes
+at each data scale, (b) what it saves in memory, time, and storage, and
+(c) whether pre-training language or tokenizer quality better predicts
+downstream performance.
+
+\section{Proposed Method}
+\label{sec:method}
+
+\subsection{Models}
+
+Four publicly available encoders are compared
+(Table~\ref{tab:models}): NepBERTa \citep{timilsina2022nepberta} and
+IRIIS-RoBERTa \citep{iriisroberta2024} are monolingual Nepali models;
+mBERT \citep{devlin2019bert} and XLM-R base \citep{conneau2020xlmr} are
+multilingual. All are BERT-family encoders at the 110--280M-parameter
+scale, so the comparison isolates pre-training data and vocabulary rather
+than architecture. NepBERTa is distributed as TensorFlow weights only;
+the checkpoint was converted to PyTorch once, verified against the
+original, and re-published so that all runs share one framework.
+Each model's true parameter and vocabulary counts were verified
+programmatically before the campaign.
+
+\begin{table}[t]
+  \centering
+  \caption{Verified model checkpoints.}
+  \label{tab:models}
+  \begin{tabular}{llrr}
+    \toprule
+    Model & Family & Params & Vocab \\
+    \midrule
+    NepBERTa      & monolingual  & 109.5\,M & 30{,}523 \\
+    IRIIS-RoBERTa & monolingual  & 124.6\,M & 50{,}256 \\
+    mBERT         & multilingual & 177.9\,M & 119{,}547 \\
+    XLM-R base    & multilingual & 278.0\,M & 250{,}002 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Pre-processing}
+
+Each dataset is loaded from its canonical repository and tokenized with
+the corresponding model's subword tokenizer (maximum length 128 tokens
+for the single-sentence tasks, 256 for coreference sentence pairs, which
+are encoded jointly with the standard pair template). Labels are cast to
+categorical form, and dynamic padding is applied per batch. Because the
+released datasets ship without validation splits, a stratified 10\,\% of
+each training set is held out as validation using a \emph{fixed} split
+seed, separate from the training seed: every run in the grid sees the
+identical train/validation partition, so cross-condition comparisons are
+not confounded by partition noise. Only training randomness
+(initialisation, shuffling, dropout) varies with the per-run seed.
+
+\subsection{Adaptation methods}
+
+\textbf{Full fine-tuning} updates all encoder weights plus a randomly
+initialised classification head. \textbf{LoRA} \citep{hu2022lora} freezes
+the encoder and injects trainable low-rank matrices $BA$ (rank $r$,
+scaling $\alpha = 2r$) into the attention query and value projections,
+following the original paper; the classification head remains trainable.
+At the default $r{=}8$ this trains 887{,}042 parameters --- between
+0.32\,\% and 0.80\,\% of each model. LoRA is implemented with the PEFT
+library \citep{mangrulkar2022peft} on Hugging Face Transformers
+\citep{wolf2020transformers}. A rank ablation on the smallest task varies
+$r \in \{4, 8, 16, 32\}$ to separate the effect of adapter capacity from
+the method itself. Complementing the accuracy comparison, tokenizer
+\emph{fertility} (mean subword tokens per whitespace word) is measured
+for all four models on the acceptability test set.
+
+% Section 4 (Experimental Results) and Section 5 (Summary)
 \input{results_discussion}
 
-\bibliographystyle{plainnat}
+\bibliographystyle{agsm} % Harvard referencing style
 \bibliography{references}
+
+\clearpage
+\appendix
+
+\section{Python Code}
+\label{app:code}
+
+The complete implementation is available in the project repository%
+\footnote{\url{https://github.com/subresh-code/nepali-peft}}; the four
+files below build, train, and evaluate the models. Analysis and plotting
+scripts (\texttt{scripts/analyze.py}, \texttt{scripts/fertility.py}) are
+in the repository.
+
+\subsection{train.py --- experiment runner}
+\lstinputlisting{../train.py}
+
+\subsection{src/data.py --- dataset loading and pre-processing}
+\lstinputlisting{../src/data.py}
+
+\subsection{src/modeling.py --- model construction and LoRA attachment}
+\lstinputlisting{../src/modeling.py}
+
+\subsection{src/metrics.py --- evaluation metrics}
+\lstinputlisting{../src/metrics.py}
 
 \end{document}

@@ -3,17 +3,52 @@
 % Figures referenced from results/figures/ — adjust \graphicspath as needed:
 % \graphicspath{{../results/figures/}}
 
-\section{Results}
+\section{Experimental Results}
 \label{sec:results}
+
+\subsection{Parameter settings and evaluation process}
+\label{sec:params}
+
+Every run is defined by one YAML configuration and appends one row to a
+results log, giving a fully scripted, resumable 78-run campaign. Within a
+task, epochs, batch size, and maximum sequence length are identical across
+methods and models (Table~\ref{tab:params}); only the learning rate differs
+by method, set to each method's published standard --- $2\times10^{-5}$ for
+full fine-tuning and $2\times10^{-4}$ for LoRA \citep{hu2022lora}. Training
+uses the AdamW optimiser \citep{loshchilov2019adamw} with mixed precision
+(fp16) via the Hugging Face \texttt{Trainer} \citep{wolf2020transformers}.
+The model is evaluated on the validation split after every epoch, and the
+checkpoint with the best validation macro-F1 is restored before the single,
+final test-set evaluation. Macro-F1 is the primary metric (both label
+distributions are imbalanced); accuracy is reported alongside, and Matthews
+correlation (MCC) additionally for acceptability, following
+\citet{warstadt2019cola}. Peak GPU memory and wall-clock minutes are
+recorded per run.
+
+\begin{table}[t]
+  \centering
+  \caption{Fixed per-task training budget (identical across methods and
+  models). Learning rate is the only method-specific setting; LoRA uses
+  $\alpha = 2r$ throughout.}
+  \label{tab:params}
+  \begin{tabular}{lccc}
+    \toprule
+    & Sentiment & Acceptability & Coreference \\
+    \midrule
+    Epochs          & 3   & 5   & 15  \\
+    Batch size      & 32  & 32  & 16  \\
+    Max length      & 128 & 128 & 256 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Main results}
 
 All results are reported as test macro-F1, averaged over three random seeds
 (42--44) with standard deviation (except the rank ablation at
 $r \in \{4, 16, 32\}$, which uses two seeds); the train/validation partition is fixed
-across every run so that cross-condition comparisons are valid. The three
-tasks are drawn from the NLUE benchmark \citep{nyachhyon2025nlue}; the models
-are XLM-R base \citep{conneau2020xlmr}, mBERT \citep{devlin2019bert},
-NepBERTa \citep{timilsina2022nepberta}, and IRIIS-RoBERTa
-\citep{iriisroberta2024}. LoRA \citep{hu2022lora} uses rank
+across every run so that cross-condition comparisons are valid.
+LoRA uses rank
 $r{=}8$ unless stated otherwise, training 887\,k parameters
 (0.32--0.80\,\% of each model) against 109--278\,M for full fine-tuning.
 Table~\ref{tab:main} summarises the full grid; Figure~\ref{fig:pareto} plots
@@ -150,8 +185,8 @@ more than three pieces. Notably, XLM-R's 250\,k multilingual vocabulary
 achieves near-monolingual fertility (1.92), while NepBERTa's small 30\,k
 Nepali vocabulary does not (2.03).
 
-\section{Discussion}
-\label{sec:discussion}
+\section{Summary}
+\label{sec:summary}
 
 \paragraph{Is LoRA a viable substitute for full fine-tuning in Nepali?}
 For the data regimes that matter in practice, yes, with a quantified cost.
