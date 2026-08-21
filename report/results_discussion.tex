@@ -9,7 +9,11 @@
 All results are reported as test macro-F1, averaged over three random seeds
 (42--44) with standard deviation (except the rank ablation at
 $r \in \{4, 16, 32\}$, which uses two seeds); the train/validation partition is fixed
-across every run so that cross-condition comparisons are valid. LoRA uses rank
+across every run so that cross-condition comparisons are valid. The three
+tasks are drawn from the NLUE benchmark \citep{nyachhyon2025nlue}; the models
+are XLM-R base \citep{conneau2020xlmr}, mBERT \citep{devlin2019bert},
+NepBERTa \citep{timilsina2022nepberta}, and IRIIS-RoBERTa
+\citep{iriisroberta2024}. LoRA \citep{hu2022lora} uses rank
 $r{=}8$ unless stated otherwise, training 887\,k parameters
 (0.32--0.80\,\% of each model) against 109--278\,M for full fine-tuning.
 Table~\ref{tab:main} summarises the full grid; Figure~\ref{fig:pareto} plots
@@ -195,5 +199,6 @@ is small enough (564 train / 142 test examples) that test-set noise is
 material, as the large seed variances show. Results cover one language,
 three classification tasks, and encoder models at the 110--280\,M scale;
 generative and larger models may behave differently. Finally, LoRA was
-applied with one target-module configuration (attention projections); other
+applied via the PEFT library \citep{mangrulkar2022peft} with one
+target-module configuration (attention projections); other
 placements were not explored.

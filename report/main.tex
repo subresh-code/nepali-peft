@@ -1,0 +1,27 @@
+% CMP6232 Assessment 2 — compilable wrapper for the Results & Discussion draft.
+% Build: pdflatex main && bibtex main && pdflatex main && pdflatex main
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage[round]{natbib}
+\usepackage[hidelinks]{hyperref}
+
+\graphicspath{{../results/figures/}}
+
+\title{Parameter-Efficient Fine-Tuning for Nepali:\\
+LoRA vs.\ Full Fine-Tuning Across Three NLUE Tasks}
+\author{Subresh Thakulla}
+\date{August 2026}
+
+\begin{document}
+\maketitle
+
+\input{results_discussion}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
