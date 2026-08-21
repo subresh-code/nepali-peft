@@ -1,0 +1,190 @@
+% Results and Discussion sections — CMP6232 Assessment 2
+% Requires: \usepackage{booktabs} \usepackage{multirow} \usepackage{graphicx}
+% Figures referenced from results/figures/ — adjust \graphicspath as needed:
+% \graphicspath{{../results/figures/}}
+
+\section{Results}
+\label{sec:results}
+
+All results are reported as test macro-F1, averaged over three random seeds
+(42--44) with standard deviation; the train/validation partition is fixed
+across every run so that cross-condition comparisons are valid. LoRA uses rank
+$r{=}8$ unless stated otherwise, training 887\,k parameters
+(0.32--0.80\,\% of each model) against 109--278\,M for full fine-tuning.
+Table~\ref{tab:main} summarises the full grid; Figure~\ref{fig:pareto} plots
+the accuracy--capacity trade-off.
+
+\begin{table}[t]
+  \centering
+  \caption{Test macro-F1 (mean $\pm$ std over 3 seeds) for full fine-tuning
+  (Full) and LoRA ($r{=}8$). $\Delta$ = Full $-$ LoRA; negative values mean
+  LoRA wins. For acceptability, Matthews correlation (MCC) is given in
+  parentheses.}
+  \label{tab:main}
+  \begin{tabular}{llccc}
+    \toprule
+    Task & Model & Full & LoRA & $\Delta$ \\
+    \midrule
+    \multirow{4}{*}{Sentiment (65\,k)}
+      & XLM-R base      & $.881 \pm .001$ & $.852 \pm .001$ & $+.029$ \\
+      & IRIIS-RoBERTa   & $.878 \pm .001$ & $.850 \pm .001$ & $+.028$ \\
+      & NepBERTa        & $.867 \pm .002$ & $.821 \pm .002$ & $+.047$ \\
+      & mBERT           & $.864 \pm .000$ & $.808 \pm .001$ & $+.056$ \\
+    \midrule
+    \multirow{4}{*}{Acceptability (7.8\,k)}
+      & IRIIS-RoBERTa   & $.812 \pm .006$ \,(.648) & $.765 \pm .004$ \,(.580) & $+.047$ \\
+      & XLM-R base      & $.808 \pm .012$ \,(.630) & $.730 \pm .007$ \,(.520) & $+.077$ \\
+      & NepBERTa        & $.806 \pm .003$ \,(.626) & $.737 \pm .003$ \,(.510) & $+.069$ \\
+      & mBERT           & $.769 \pm .005$ \,(.554) & $.721 \pm .006$ \,(.494) & $+.048$ \\
+    \midrule
+    \multirow{4}{*}{Coreference (564)}
+      & mBERT           & $.327 \pm .017$ & $.413 \pm .017$ & $-.085$ \\
+      & NepBERTa        & $.329 \pm .023$ & $.408 \pm .021$ & $-.079$ \\
+      & IRIIS-RoBERTa   & $.307 \pm .027$ & $.382 \pm .046$ & $-.075$ \\
+      & XLM-R base      & $.317 \pm .000$ & $.354 \pm .070$ & $-.036$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{pareto.png}
+  \caption{Test macro-F1 against trainable parameters (log scale), one panel
+  per task. Circles = full fine-tuning, triangles = LoRA $r{=}8$; error bars
+  span $\pm 1$ std over seeds. On the two larger tasks full fine-tuning
+  dominates; on the 564-example coreference task the ordering inverts.}
+  \label{fig:pareto}
+\end{figure}
+
+\subsection{Sentiment and acceptability: full fine-tuning wins, LoRA stays close}
+
+On sentiment, the largest task, full fine-tuning is best for every model,
+led by XLM-R base ($.881$) and IRIIS-RoBERTa ($.878$). LoRA trails by
+2.8--5.6 F1 points while updating under 1\,\% of the parameters. Seed
+variance is negligible throughout ($\sigma \le .002$), so these gaps,
+though small, are systematic rather than noise. Acceptability shows the same
+ordering with a wider LoRA gap (4.7--7.7 points; 6.0--11.6 MCC points),
+consistent with the smaller training set giving the adapters fewer examples
+from which to compensate for the frozen backbone.
+
+\subsection{Coreference: full fine-tuning collapses, LoRA degrades gracefully}
+
+With only 564 training examples, no configuration learns the task well
+(macro-F1 $.31$--$.41$), but the \emph{failure modes} differ sharply. Full
+fine-tuning collapses to the majority class: XLM-R full scores
+$.317 \pm .000$ --- an identical, degenerate output on all three seeds, with
+evaluation loss pinned at $\ln 2$ throughout training. LoRA, by contrast,
+beats full fine-tuning on \emph{all four} models (by 3.6--8.5 points),
+retaining some class-discriminative signal at the price of high seed variance
+(up to $\sigma{=}.070$). The frozen backbone appears to act as a regulariser:
+with only 887\,k free parameters, the model cannot fully re-organise its
+representation around the majority-class shortcut.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=.6\linewidth]{rank_ablation.png}
+  \caption{LoRA rank ablation on XLM-R coreference. Mean test macro-F1
+  falls monotonically as rank grows; at $r{=}32$ every seed lands exactly on
+  the majority-class floor reached by full fine-tuning (dashed line).}
+  \label{fig:ablation}
+\end{figure}
+
+The rank ablation (Figure~\ref{fig:ablation}) supports this interpretation
+causally: as adapter capacity grows from $r{=}4$ to $r{=}32$
+(740\,k\,$\to$\,1.77\,M trainable parameters), mean macro-F1 falls
+monotonically ($.352 \to .354 \to .346 \to .317$), and at $r{=}32$ the model
+reproduces the full fine-tuning collapse exactly ($.317 \pm .000$). Capacity
+itself, not the adaptation method, is the risk factor on data this scarce.
+
+\subsection{Training cost}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{efficiency.png}
+  \caption{Peak GPU memory and wall-clock time on the sentiment task
+  (65\,k examples), full fine-tuning vs LoRA $r{=}8$, single T4 GPU.}
+  \label{fig:efficiency}
+\end{figure}
+
+LoRA cuts peak GPU memory by 40--50\,\% (XLM-R: 5.2\,$\to$\,2.6\,GB) and
+wall-clock time by 25--50\,\% on sentiment (Figure~\ref{fig:efficiency}),
+with every configuration fitting comfortably on a free-tier 16\,GB T4. The
+practical consequence for low-resource settings is direct: the entire
+78-run study was executed on free Colab sessions, and the LoRA
+checkpoints are megabytes rather than gigabytes.
+
+\subsection{Tokenizer fertility}
+
+\begin{table}[t]
+  \centering
+  \caption{Tokenizer fertility (mean subword tokens per whitespace word) on
+  the 1,950-sentence acceptability test set. Lower is better.}
+  \label{tab:fertility}
+  \begin{tabular}{llrr}
+    \toprule
+    Model & Family & Vocab & Fertility \\
+    \midrule
+    IRIIS-RoBERTa & monolingual  & 50\,k  & 1.34 \\
+    XLM-R base    & multilingual & 250\,k & 1.92 \\
+    NepBERTa      & monolingual  & 30\,k  & 2.03 \\
+    mBERT         & multilingual & 119\,k & 3.04 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Fertility (Table~\ref{tab:fertility}) varies by a factor of 2.3 across the
+four models. IRIIS-RoBERTa's Nepali-specific 50\,k vocabulary is the most
+compact (1.34 tokens per word); mBERT fragments the average Nepali word into
+more than three pieces. Notably, XLM-R's 250\,k multilingual vocabulary
+achieves near-monolingual fertility (1.92), while NepBERTa's small 30\,k
+Nepali vocabulary does not (2.03).
+
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Is LoRA a viable substitute for full fine-tuning in Nepali?}
+For the data regimes that matter in practice, yes, with a quantified cost.
+At 65\,k examples LoRA concedes about 3 points of macro-F1 to full
+fine-tuning on the strongest models, in exchange for half the memory, half
+the time, and checkpoints four orders of magnitude smaller. At 7.8\,k
+examples the concession grows to 5--8 points, suggesting the gap widens as
+data shrinks --- until the regime flips entirely.
+
+\paragraph{On very small data, less capacity is protective.}
+The clearest finding of this study is the inversion at 564 examples: full
+fine-tuning collapses to majority-class prediction on every model, while
+LoRA degrades gracefully and wins across the board. The rank ablation shows
+this is a capacity effect, not a method effect --- adding adapter capacity
+monotonically recovers the collapse, and $r{=}32$ is indistinguishable from
+full fine-tuning. For low-resource languages, where 500-example tasks are
+common, this reverses the usual framing: parameter-efficient methods are not
+merely a cheaper approximation of full fine-tuning but can be the more
+robust choice outright. A fixed hyperparameter budget across all runs was a
+deliberate design choice for comparability; per-task tuning (longer
+schedules, class weighting) might rescue full fine-tuning here, and this
+remains an avenue for future work.
+
+\paragraph{Nepali-specific pretraining is not automatically superior.}
+XLM-R base, a multilingual model, is the best sentiment model and matches
+the monolingual models on acceptability. The fertility analysis suggests
+why: the usual ``multilingual tax'' is largely a tokenization tax, and
+XLM-R's 250\,k vocabulary mostly avoids paying it, whereas mBERT --- the
+weakest and slowest model throughout --- pays it in full. Fertility tracks
+the results better than pretraining language does: the most compact
+tokenizer (IRIIS-RoBERTa) is the fastest model and best on acceptability,
+while the most fragmenting (mBERT) is slowest and worst. Grammaticality
+judgement plausibly suffers most from fragmentation, since morphological
+cues are split across many subword pieces. For practitioners building
+Nepali systems, vocabulary quality is therefore a first-order model
+selection criterion, ahead of the monolingual/multilingual distinction.
+
+\paragraph{Limitations.}
+All runs share one hyperparameter budget (3 epochs, fixed learning rates)
+chosen for grid comparability rather than per-cell optimality; absolute
+scores understate what tuned models could achieve. The coreference dataset
+is small enough (564 train / 142 test examples) that test-set noise is
+material, as the large seed variances show. Results cover one language,
+three classification tasks, and encoder models at the 110--280\,M scale;
+generative and larger models may behave differently. Finally, LoRA was
+applied with one target-module configuration (attention projections); other
+placements were not explored.
