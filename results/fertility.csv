@@ -1,0 +1,5 @@
+model,family,vocab_size,fertility,unk_pct
+nepberta,monolingual,30523,2.026,0.0
+iriis-roberta,monolingual,50256,1.342,0.023
+mbert,multilingual,119547,3.043,0.0
+xlmr-base,multilingual,250002,1.92,0.0
