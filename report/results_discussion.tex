@@ -7,7 +7,8 @@
 \label{sec:results}
 
 All results are reported as test macro-F1, averaged over three random seeds
-(42--44) with standard deviation; the train/validation partition is fixed
+(42--44) with standard deviation (except the rank ablation at
+$r \in \{4, 16, 32\}$, which uses two seeds); the train/validation partition is fixed
 across every run so that cross-condition comparisons are valid. LoRA uses rank
 $r{=}8$ unless stated otherwise, training 887\,k parameters
 (0.32--0.80\,\% of each model) against 109--278\,M for full fine-tuning.
@@ -72,8 +73,9 @@ from which to compensate for the frozen backbone.
 With only 564 training examples, no configuration learns the task well
 (macro-F1 $.31$--$.41$), but the \emph{failure modes} differ sharply. Full
 fine-tuning collapses to the majority class: XLM-R full scores
-$.317 \pm .000$ --- an identical, degenerate output on all three seeds, with
-evaluation loss pinned at $\ln 2$ throughout training. LoRA, by contrast,
+$.317 \pm .000$ --- an identical, degenerate output on all three seeds. The
+scores match all-one-class prediction exactly: a constant binary predictor
+with accuracy $a$ has macro-F1 $a/(1+a)$, and $.4648/1.4648 = .3173$. LoRA, by contrast,
 beats full fine-tuning on \emph{all four} models (by 3.6--8.5 points),
 retaining some class-discriminative signal at the price of high seed variance
 (up to $\sigma{=}.070$). The frozen backbone appears to act as a regulariser:
@@ -84,17 +86,22 @@ representation around the majority-class shortcut.
   \centering
   \includegraphics[width=.6\linewidth]{rank_ablation.png}
   \caption{LoRA rank ablation on XLM-R coreference. Mean test macro-F1
-  falls monotonically as rank grows; at $r{=}32$ every seed lands exactly on
-  the majority-class floor reached by full fine-tuning (dashed line).}
+  is flat from $r{=}4$ to $r{=}8$ and falls thereafter; at $r{=}32$ both
+  seeds land exactly on the majority-class floor reached by full
+  fine-tuning (dashed line). Ranks other than 8 use two seeds.}
   \label{fig:ablation}
 \end{figure}
 
-The rank ablation (Figure~\ref{fig:ablation}) supports this interpretation
-causally: as adapter capacity grows from $r{=}4$ to $r{=}32$
-(740\,k\,$\to$\,1.77\,M trainable parameters), mean macro-F1 falls
-monotonically ($.352 \to .354 \to .346 \to .317$), and at $r{=}32$ the model
-reproduces the full fine-tuning collapse exactly ($.317 \pm .000$). Capacity
-itself, not the adaptation method, is the risk factor on data this scarce.
+The rank ablation (Figure~\ref{fig:ablation}) is consistent with a capacity
+effect: as adapter capacity grows from $r{=}4$ to $r{=}32$
+(740\,k\,$\to$\,1.77\,M trainable parameters), mean macro-F1 is flat from
+$r{=}4$ to $r{=}8$ and then falls
+($.352 \to .354 \to .346 \to .317$), and at $r{=}32$ the model
+reproduces the full fine-tuning collapse exactly ($.317 \pm .000$). The
+differences among $r \le 16$ sit within seed noise (individual seeds range
+$.31$--$.43$, and one $r{=}4$ seed already lands on the collapse floor), so
+the solid observation is the endpoint: at $r{=}32$, added capacity
+reproduces the failure mode of full fine-tuning on data this scarce.
 
 \subsection{Training cost}
 
@@ -146,17 +153,17 @@ Nepali vocabulary does not (2.03).
 For the data regimes that matter in practice, yes, with a quantified cost.
 At 65\,k examples LoRA concedes about 3 points of macro-F1 to full
 fine-tuning on the strongest models, in exchange for half the memory, half
-the time, and checkpoints four orders of magnitude smaller. At 7.8\,k
+the time, and checkpoints two orders of magnitude smaller. At 7.8\,k
 examples the concession grows to 5--8 points, suggesting the gap widens as
 data shrinks --- until the regime flips entirely.
 
 \paragraph{On very small data, less capacity is protective.}
 The clearest finding of this study is the inversion at 564 examples: full
 fine-tuning collapses to majority-class prediction on every model, while
-LoRA degrades gracefully and wins across the board. The rank ablation shows
-this is a capacity effect, not a method effect --- adding adapter capacity
-monotonically recovers the collapse, and $r{=}32$ is indistinguishable from
-full fine-tuning. For low-resource languages, where 500-example tasks are
+LoRA degrades gracefully and wins across the board. The rank ablation
+suggests this is a capacity effect, not a method effect --- at $r{=}32$ the
+adapter is indistinguishable from full fine-tuning, reproducing the collapse
+exactly. For low-resource languages, where 500-example tasks are
 common, this reverses the usual framing: parameter-efficient methods are not
 merely a cheaper approximation of full fine-tuning but can be the more
 robust choice outright. A fixed hyperparameter budget across all runs was a
@@ -169,7 +176,8 @@ XLM-R base, a multilingual model, is the best sentiment model and matches
 the monolingual models on acceptability. The fertility analysis suggests
 why: the usual ``multilingual tax'' is largely a tokenization tax, and
 XLM-R's 250\,k vocabulary mostly avoids paying it, whereas mBERT --- the
-weakest and slowest model throughout --- pays it in full. Fertility tracks
+slowest model throughout and the weakest on the two larger tasks --- pays
+it in full. Fertility tracks
 the results better than pretraining language does: the most compact
 tokenizer (IRIIS-RoBERTa) is the fastest model and best on acceptability,
 while the most fragmenting (mBERT) is slowest and worst. Grammaticality
@@ -179,7 +187,8 @@ Nepali systems, vocabulary quality is therefore a first-order model
 selection criterion, ahead of the monolingual/multilingual distinction.
 
 \paragraph{Limitations.}
-All runs share one hyperparameter budget (3 epochs, fixed learning rates)
+All runs share one hyperparameter budget per task (3/5/15 epochs for
+sentiment/acceptability/coreference, fixed learning rates)
 chosen for grid comparability rather than per-cell optimality; absolute
 scores understate what tuned models could achieve. The coreference dataset
 is small enough (564 train / 142 test examples) that test-set noise is
