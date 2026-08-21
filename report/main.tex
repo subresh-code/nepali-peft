@@ -77,6 +77,42 @@ data-scarcity regime in which LoRA \emph{outperforms} full fine-tuning;
 and (iii) a tokenizer-fertility analysis linking vocabulary quality to
 both accuracy and cost.
 
+\subsection{Related work and recent trends}
+\label{sec:trends}
+
+The shift toward parameter-efficient adaptation is driven as much by
+industry economics as by research: serving one frozen backbone with many
+small task adapters is dramatically cheaper to store and deploy than
+maintaining a full fine-tuned copy per task. Adapter layers
+\citep{houlsby2019adapters} established the paradigm; LoRA
+\citep{hu2022lora} removed its inference overhead and has become the
+de-facto industry default, integrated into mainstream tooling
+\citep{mangrulkar2022peft}; QLoRA \citep{dettmers2023qlora} extended it
+to quantised multi-billion-parameter models on single consumer GPUs.
+Yet this evidence base deserves scrutiny before being imported into a
+low-resource setting. The headline claim --- that PEFT \emph{matches}
+full fine-tuning --- was established largely on English benchmarks with
+abundant task data and increasingly on very large decoder models; both
+conditions fail here, and this study finds the claim only approximately
+true at 65\,k examples and clearly false, in \emph{either} direction,
+below that.
+
+A second relevant debate concerns monolingual versus multilingual
+pre-training. The ``curse of multilinguality'' \citep{conneau2020xlmr}
+predicts per-language degradation as coverage grows, motivating dedicated
+models such as NepBERTa, which reported state-of-the-art Nepali results
+\citep{timilsina2022nepberta}. More recent benchmark evidence complicates
+this: on NLUE, the best multilingual model outperforms monolingual ones
+on most tasks \citep{nyachhyon2025nlue}. The results in this report
+suggest the two positions are reconcilable --- the operative variable is
+not pre-training language but tokenizer quality, which multilingual
+models can buy with a sufficiently large vocabulary. Finally, the
+standard framing of PEFT as a cheaper \emph{approximation} of full
+fine-tuning is challenged by the data-scarce regime studied here, where
+the frozen backbone functions as a regulariser and LoRA is the more
+robust method outright --- a nuance largely absent from the
+English-centric literature.
+
 The report is organised as follows. Section~\ref{sec:problem} describes
 the datasets and formalises the problem. Section~\ref{sec:method} details
 the models, pre-processing, and adaptation methods.
