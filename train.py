@@ -16,11 +16,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-import src.telemetry  # noqa: F401  must precede torch/transformers: wires OTel
-
 import torch
 import yaml
-from opentelemetry import metrics, trace
 from transformers import (DataCollatorWithPadding, Trainer,
                           TrainingArguments, set_seed)
 
@@ -29,12 +26,6 @@ from src.metrics import build_compute_metrics
 from src.modeling import build, family_of
 
 log = logging.getLogger("nepali_peft.train")
-tracer = trace.get_tracer("nepali_peft.train")
-meter = metrics.get_meter("nepali_peft.train")
-
-runs_completed = meter.create_counter("train.runs.completed", unit="1")
-wall_clock_hist = meter.create_histogram("train.wall_clock_minutes", unit="min")
-test_f1_hist = meter.create_histogram("train.test_macro_f1", unit="1")
 
 RESULTS_CSV = Path("results/results.csv")
 
@@ -58,24 +49,15 @@ def append_result(row: dict) -> None:
         writer.writerow({k: row.get(k, "") for k in CSV_FIELDS})
 
 
-@tracer.start_as_current_span("train.run")
 def main(cfg_path: str) -> None:
     cfg = yaml.safe_load(Path(cfg_path).read_text())
 
     run_id = (f"{cfg['model']}_{cfg['task']}_{cfg['method']}"
               f"_r{cfg.get('lora_r', 0) if cfg['method'] == 'lora' else 0}"
               f"_s{cfg['seed']}")
-    span = trace.get_current_span()
-    span.set_attributes({
-        "run.id": run_id, "model.key": cfg["model"], "task": cfg["task"],
-        "method": cfg["method"], "seed": cfg["seed"],
-        "epochs": cfg["epochs"], "lr": str(cfg["lr"]),
-        **({"lora.r": cfg.get("lora_r", 8)} if cfg["method"] == "lora" else {}),
-    })
 
-    # ponytail: substring check, fine while run_ids stay unambiguous
+    # Substring check; fine while no run_id is a prefix of another.
     if RESULTS_CSV.exists() and run_id in RESULTS_CSV.read_text():
-        span.set_attribute("run.skipped", True)
         log.info("skip %s: already in %s", run_id, RESULTS_CSV)
         print(f"SKIP {run_id}: already in {RESULTS_CSV}")
         return
@@ -123,14 +105,12 @@ def main(cfg_path: str) -> None:
     if use_cuda:
         torch.cuda.reset_peak_memory_stats()
     t0 = time.time()
-    with tracer.start_as_current_span("train.fit"):
-        trainer.train()
+    trainer.train()
     wall_min = (time.time() - t0) / 60
     peak_gb = (torch.cuda.max_memory_allocated() / 1e9) if use_cuda else 0.0
 
-    with tracer.start_as_current_span("train.evaluate"):
-        val = trainer.evaluate(ds["validation"], metric_key_prefix="val")
-        test = trainer.evaluate(ds["test"], metric_key_prefix="test")
+    val = trainer.evaluate(ds["validation"], metric_key_prefix="val")
+    test = trainer.evaluate(ds["test"], metric_key_prefix="test")
 
     if cfg["method"] == "lora":
         built.model.save_pretrained(f"adapters/{run_id}")
@@ -162,19 +142,6 @@ def main(cfg_path: str) -> None:
         "wall_clock_min": round(wall_min, 1),
     }
     append_result(row)
-
-    span.set_attributes({
-        "result.val_macro_f1": row["val_macro_f1"],
-        "result.test_macro_f1": row["test_macro_f1"],
-        "result.test_accuracy": row["test_accuracy"],
-        "result.trainable_params": row["trainable_params"],
-        "result.peak_vram_gb": row["peak_vram_gb"],
-        "result.wall_clock_min": row["wall_clock_min"],
-    })
-    dims = {"model": cfg["model"], "task": cfg["task"], "method": cfg["method"]}
-    runs_completed.add(1, dims)
-    wall_clock_hist.record(row["wall_clock_min"], dims)
-    test_f1_hist.record(row["test_macro_f1"], dims)
     log.info("run %s complete: test_macro_f1=%s wall_clock_min=%s",
              run_id, row["test_macro_f1"], row["wall_clock_min"])
 
@@ -185,6 +152,8 @@ def main(cfg_path: str) -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(message)s")
     p = argparse.ArgumentParser()
     p.add_argument("--config", required=True)
     main(p.parse_args().config)
